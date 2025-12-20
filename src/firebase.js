@@ -1,26 +1,21 @@
-// src/firebase.js
-
+// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Firebase configuration (new project)
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyC1rG9OJnfJmT9mlsF0HAsWpgecNh6PBY8",
-  authDomain: "presence-83.firebaseapp.com",
-  projectId: "presence-83",
-  storageBucket: "presence-83.firebasestorage.app",
-  messagingSenderId: "479671231284",
-  appId: "1:479671231284:web:aabab6b3b285419de3fb61",
-  measurementId: "G-2JW1Q9Z3EP",
+  apiKey: "AIzaSyBCUfhiM2jBeKDCaxaXwmew9Y89xVoVmU4",
+  authDomain: "presencegrid.firebaseapp.com",
+  projectId: "presencegrid",
+  storageBucket: "presencegrid.firebasestorage.app",
+  messagingSenderId: "884909430581",
+  appId: "1:884909430581:web:9ea93e72b95c2eb14e1e7c",
+  measurementId: "G-6WHM4SP9HZ"
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-
-// Initialize services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-
-// Export app (optional but good practice)
-export default app;
+const analytics = getAnalytics(app);
