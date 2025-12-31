@@ -1,114 +1,175 @@
 // src/pages/LoginPage.jsx
 import React, { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from "../firebase";
-import { doc, getDoc, query, collection, where, getDocs } from "firebase/firestore";
+import {
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+} from "firebase/auth";
+import { auth } from "../firebase";
 
 export default function LoginPage({ onLogin, onSwitch }) {
-  const [identifier, setIdentifier] = useState(""); // username or email
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
+  /* ---------------- LOGIN ---------------- */
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError("");
     setLoading(true);
 
     try {
-      let emailToUse = identifier.trim();
+      const cred = await signInWithEmailAndPassword(
+        auth,
+        email.trim(),
+        password
+      );
 
-      // If it's a username (no '@'), find the associated email
-      if (!emailToUse.includes("@")) {
-        const q = query(collection(db, "users"), where("username", "==", emailToUse));
-        const snap = await getDocs(q);
-        if (snap.empty) {
-          alert("No account found with this username.");
-          setLoading(false);
-          return;
-        }
-        emailToUse = snap.docs[0].data().email;
-      }
+      localStorage.setItem(
+        "presenceUser",
+        JSON.stringify({ email: cred.user.email })
+      );
 
-      // Sign in with resolved email
-      await signInWithEmailAndPassword(auth, emailToUse, password);
-
-      // Fetch user profile from Firestore
-      const ref = doc(db, "users", emailToUse);
-      const userSnap = await getDoc(ref);
-
-      if (!userSnap.exists()) {
-        alert("User profile not found.");
-        setLoading(false);
-        return;
-      }
-
-      const userData = userSnap.data();
-      localStorage.setItem("presenceUser", JSON.stringify(userData));
-
-      alert(`Welcome back, ${userData.name || "Friend"}!`);
       onLogin?.();
     } catch (err) {
-      console.error("Login failed:", err);
-      alert("Incorrect email/username or password.");
+      console.error(err);
+      setError("Invalid email or password.");
     } finally {
       setLoading(false);
     }
   };
 
+  /* ---------------- FORGOT PASSWORD ---------------- */
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setError("Enter your email first.");
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setError("Password reset email sent.");
+    } catch (err) {
+      console.error(err);
+      setError("Failed to send reset email.");
+    }
+  };
+
+  /* ---------------- UI ---------------- */
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
-      <form
-        onSubmit={handleLogin}
-        className="bg-white/90 backdrop-blur-md rounded-3xl p-8 shadow-md w-full max-w-md"
-      >
-        <h1 className="text-2xl font-bold text-indigo-700 mb-6 text-center">
-          Welcome back 👋
-        </h1>
+    <div
+      className="
+        min-h-screen flex items-center justify-center px-6
+        bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50
+      "
+    >
+      <div className="w-full max-w-6xl grid md:grid-cols-2 gap-16 items-center">
+        {/* ================= LEFT CONTENT ================= */}
+        <div>
+          <h1 className="text-4xl font-bold mb-6">
+            Welcome back
+          </h1>
 
-        <p className="text-gray-500 text-center mb-6">
-          Log in to continue to Presence Grid.
-        </p>
+          <p className="text-lg text-slate-700 mb-6 max-w-md">
+            Continue calm, intentional conversations —
+            without noise, pressure, or endless scrolling.
+          </p>
 
-        <input
-          type="text"
-          placeholder="Email or Username"
-          value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
-          className="w-full mb-4 p-3 border border-indigo-100 rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none"
-          required
-        />
+          <ul className="space-y-3 text-sm text-slate-700">
+            <li>• Talk only when you’re actually available</li>
+            <li>• Short, focused conversations</li>
+            <li>• Designed to feel human, not addictive</li>
+          </ul>
+        </div>
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full mb-6 p-3 border border-indigo-100 rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none"
-          required
-        />
-
-        <button
-          type="submit"
-          disabled={loading}
-          className={`w-full py-3 rounded-xl font-semibold shadow-md transition text-white ${
-            loading
-              ? "bg-gray-300 cursor-not-allowed"
-              : "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:shadow-lg"
-          }`}
+        {/* ================= LOGIN CARD ================= */}
+        <form
+          onSubmit={handleLogin}
+          className="
+            w-full max-w-md mx-auto
+            bg-white rounded-3xl p-8
+            shadow-2xl
+          "
         >
-          {loading ? "Logging in..." : "Log In"}
-        </button>
+          <h2 className="text-2xl font-bold text-center mb-2 text-indigo-600">
+            Welcome back 👋
+          </h2>
 
-        <p className="text-center text-gray-500 text-sm mt-6">
-          Don’t have an account?{" "}
+          <p className="text-center text-sm text-slate-600 mb-6">
+            Continue calm, intentional conversations.
+          </p>
+
+          {error && (
+            <div className="mb-4 text-sm text-red-600 bg-red-100 px-3 py-2 rounded-lg">
+              {error}
+            </div>
+          )}
+
+          <input
+            type="email"
+            placeholder="Email address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="
+              w-full mb-4 p-3 rounded-xl border
+              border-slate-200
+              placeholder-slate-400
+              focus:outline-none focus:ring-2 focus:ring-indigo-500
+            "
+            required
+          />
+
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="
+              w-full mb-3 p-3 rounded-xl border
+              border-slate-200
+              placeholder-slate-400
+              focus:outline-none focus:ring-2 focus:ring-indigo-500
+            "
+            required
+          />
+
+          <div className="text-right mb-6">
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="text-sm text-indigo-600 hover:underline"
+            >
+              Forgot password?
+            </button>
+          </div>
+
           <button
-            type="button"
-            onClick={onSwitch}
-            className="text-indigo-600 font-medium hover:underline"
+            type="submit"
+            disabled={loading}
+            className={`
+              w-full py-3 rounded-xl font-semibold text-white transition
+              ${
+                loading
+                  ? "bg-slate-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-90"
+              }
+            `}
           >
-            Sign up
+            {loading ? "Logging in…" : "Log In"}
           </button>
-        </p>
-      </form>
+
+          <p className="text-center mt-6 text-sm text-slate-700">
+            Don’t have an account?{" "}
+            <button
+              type="button"
+              onClick={onSwitch}
+              className="text-indigo-600 font-semibold hover:underline"
+            >
+              Sign up
+            </button>
+          </p>
+        </form>
+      </div>
     </div>
   );
 }

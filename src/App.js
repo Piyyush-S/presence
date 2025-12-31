@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+
+import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import UserInfoForm from "./pages/UserInfoForm";
@@ -7,70 +9,102 @@ import FriendsPage from "./pages/FriendsPage";
 import Notifications from "./pages/Notifications";
 import ProfilePage from "./pages/ProfilePage";
 import ChatPage from "./pages/ChatPage";
-import ChatsPage from "./pages/ChatsPage"; // ✅ fixed import
+import ChatsPage from "./pages/ChatsPage";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsPage from "./pages/TermsPage";
+
 import { db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 import usePresence from "./hooks/usePresence";
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [isLogin, setIsLogin] = useState(true);
   const [stage, setStage] = useState("loading");
+  const [isLogin, setIsLogin] = useState(true);
 
-  // 🔥 Presence
-  const saved = typeof window !== "undefined" ? localStorage.getItem("presenceUser") : null;
-  const me = saved ? JSON.parse(saved) : null;
+  /* ---------------- PRESENCE ---------------- */
+  const stored =
+    typeof window !== "undefined"
+      ? localStorage.getItem("presenceUser")
+      : null;
+
+  const me = stored ? JSON.parse(stored) : null;
   usePresence(me?.email);
 
-  // ⚡ Load user
+  /* ---------------- INIT ---------------- */
   useEffect(() => {
     const init = async () => {
       try {
-        const saved = localStorage.getItem("presenceUser");
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed?.email) {
-            setUser(parsed);
-            setStage("dashboard");
-          }
-        } else setStage("auth");
+        if (!stored) {
+          setStage("landing");
+          return;
+        }
 
-        // 🔄 Firestore sync
-        if (saved) {
-          const parsed = JSON.parse(saved);
+        const parsed = JSON.parse(stored);
+        if (!parsed?.email) {
+          setStage("landing");
+          return;
+        }
+
+        setUser(parsed);
+
+        const profileComplete =
+          parsed.city && parsed.gender && parsed.age;
+
+        setStage(profileComplete ? "dashboard" : "userinfo");
+
+        try {
           const ref = doc(db, "users", parsed.email);
-          const snapshot = await getDoc(ref);
+          const snap = await getDoc(ref);
 
-          if (snapshot.exists()) {
-            const data = snapshot.data();
-            localStorage.setItem("presenceUser", JSON.stringify(data));
-            setUser(data);
-            setStage(data.gender && data.city && data.age && data.mood ? "dashboard" : "userinfo");
-          } else setStage("auth");
+          if (snap.exists()) {
+            const fresh = snap.data();
+            localStorage.setItem(
+              "presenceUser",
+              JSON.stringify(fresh)
+            );
+            setUser(fresh);
+
+            const complete =
+              fresh.city && fresh.gender && fresh.age;
+
+            setStage(complete ? "dashboard" : "userinfo");
+          }
+        } catch {
+          // Firestore offline → ignore
         }
       } catch {
-        setStage("auth");
+        setStage("landing");
       }
     };
-    init();
-  }, []);
 
-  // Navigation handlers
-  const handleLogin = async () => {
+    init();
+  }, [stored]);
+
+  /* ---------------- AUTH ---------------- */
+  const handleLogin = () => {
     const saved = localStorage.getItem("presenceUser");
-    if (!saved) return setStage("auth");
+    if (!saved) {
+      setStage("auth");
+      return;
+    }
+
     const parsed = JSON.parse(saved);
-    const ref = doc(db, "users", parsed.email);
-    const snapshot = await getDoc(ref);
-    if (!snapshot.exists()) return setStage("auth");
-    const data = snapshot.data();
-    setUser(data);
-    setStage(data.gender && data.city && data.age && data.mood ? "dashboard" : "userinfo");
+    setUser(parsed);
+
+    const complete =
+      parsed.city && parsed.gender && parsed.age;
+
+    setStage(complete ? "dashboard" : "userinfo");
   };
 
   const handleSignup = () => {
     const saved = localStorage.getItem("presenceUser");
-    if (!saved) return setStage("auth");
+    if (!saved) {
+      setStage("auth");
+      return;
+    }
+
     setUser(JSON.parse(saved));
     setStage("userinfo");
   };
@@ -78,81 +112,118 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem("presenceUser");
     setUser(null);
-    setStage("auth");
-    setIsLogin(true);
+    setStage("landing");
   };
 
-  const handleUserInfoComplete = () => setStage("dashboard");
-  const handleOpenFriends = () => setStage("friends");
-  const handleOpenNotifications = () => setStage("notifications");
-  const handleOpenProfile = () => setStage("profile");
-  const handleOpenChats = () => setStage("chats");
-  const handleOpenChat = (email) => {
+  /* ---------------- NAV ---------------- */
+  const goDashboard = () => setStage("dashboard");
+  const goFriends = () => setStage("friends");
+  const goNotifications = () => setStage("notifications");
+  const goProfile = () => setStage("profile");
+  const goChats = () => setStage("chats");
+  const goChat = (email) => {
     localStorage.setItem("chatWith", email);
     setStage("chat");
   };
-  const handleBackToDashboard = () => setStage("dashboard");
 
-  // Loading
+  /* ---------------- UI ---------------- */
+
   if (stage === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
-        <p className="text-gray-600 text-lg animate-pulse">Loading Presence Grid 🌿...</p>
+        <p className="text-gray-600 animate-pulse">
+          Loading Presence Grid 🌿
+        </p>
       </div>
     );
   }
 
-  // Routing (UI stages)
+  if (stage === "landing") {
+    return (
+      <LandingPage
+        onLogin={() => {
+          setIsLogin(true);
+          setStage("auth");
+        }}
+        onSignup={() => {
+          setIsLogin(false);
+          setStage("auth");
+        }}
+        onOpenTerms={() => setStage("terms")}
+        onOpenPrivacy={() => setStage("privacy")}
+      />
+    );
+  }
+
+  if (stage === "terms") {
+    return <TermsPage onBack={() => setStage("landing")} />;
+  }
+
+  if (stage === "privacy") {
+    return <PrivacyPolicy onBack={() => setStage("landing")} />;
+  }
+
   if (stage === "auth") {
     return isLogin ? (
-      <LoginPage onLogin={handleLogin} onSwitch={() => setIsLogin(false)} />
+      <LoginPage
+        onLogin={handleLogin}
+        onSwitch={() => setIsLogin(false)}
+      />
     ) : (
-      <SignupPage onSignup={handleSignup} onSwitch={() => setIsLogin(true)} />
+      <SignupPage
+        onSignup={handleSignup}
+        onSwitch={() => setIsLogin(true)}
+      />
     );
   }
 
   if (stage === "userinfo") {
-    return <UserInfoForm email={user?.email} onComplete={handleUserInfoComplete} />;
+    return (
+      <UserInfoForm
+        email={user?.email}
+        onComplete={goDashboard}
+      />
+    );
   }
 
-  // 👥 Friends
-if (stage === "friends") {
-  return (
-    <FriendsPage
-      onBack={handleBackToDashboard}
-      onOpenChat={(email) => {
-        localStorage.setItem("chatWith", email);
-        setStage("chat");
-      }}
-    />
-  );
-}
-
+  if (stage === "friends") {
+    return (
+      <FriendsPage
+        onBack={goDashboard}
+        onOpenChat={goChat}
+      />
+    );
+  }
 
   if (stage === "notifications") {
-    return <Notifications onBack={handleBackToDashboard} />;
+    return <Notifications onBack={goDashboard} />;
   }
 
   if (stage === "profile") {
-    return <ProfilePage onBack={handleBackToDashboard} />;
+    return <ProfilePage onBack={goDashboard} />;
   }
 
   if (stage === "chats") {
-    return <ChatsPage onBack={handleBackToDashboard} onOpenChat={handleOpenChat} />;
+    return (
+      <ChatsPage
+        onBack={goDashboard}
+        onOpenChat={goChat}
+      />
+    );
   }
 
   if (stage === "chat") {
-    return <ChatPage onBack={() => setStage("chats")} />;
+    return <ChatPage onBack={goChats} />;
   }
 
   if (stage === "dashboard") {
     return (
       <HomeDashboard
         onLogout={handleLogout}
-        onOpenFriends={handleOpenFriends}
-        onOpenNotifications={handleOpenNotifications}
-        onOpenProfile={handleOpenProfile}
-        onOpenChats={handleOpenChats}
+        onOpenFriends={goFriends}
+        onOpenNotifications={goNotifications}
+        onOpenProfile={goProfile}
+        onOpenChats={goChats}
       />
     );
   }

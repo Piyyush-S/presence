@@ -4,10 +4,7 @@ import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
 } from "firebase/auth";
-import {
-  doc, setDoc, getDocs, query, collection, where, serverTimestamp,
-} from "firebase/firestore";
-import { auth, db } from "../firebase";
+import { auth } from "../firebase";
 
 export default function SignupPage({ onSignup, onSwitch }) {
   const [email, setEmail] = useState("");
@@ -22,107 +19,162 @@ export default function SignupPage({ onSignup, onSwitch }) {
     setError("");
 
     const uname = username.trim().toLowerCase();
-    if (!email || !password || !uname) return setError("Please fill in all fields.");
-    if (password !== confirm) return setError("Passwords do not match.");
-    if (uname.length < 3) return setError("Username must be at least 3 characters.");
+
+    if (!email || !password || !uname)
+      return setError("Please fill in all fields.");
+    if (password !== confirm)
+      return setError("Passwords do not match.");
+    if (uname.length < 3)
+      return setError("Username must be at least 3 characters.");
 
     setLoading(true);
+
     try {
-      // Ensure username unique
-      const q = query(collection(db, "usernames"), where("username", "==", uname));
-      const existing = await getDocs(q);
-      if (!existing.empty) {
-        setError("This username is already taken. Try another one.");
-        setLoading(false);
-        return;
-      }
-
-      // Create auth user
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      await sendEmailVerification(cred.user);
-
-      // Create user profile
-      const userDoc = {
+      const cred = await createUserWithEmailAndPassword(
+        auth,
         email,
-        username: uname,
-        name: "",
-        age: "",
-        city: "",
-        gender: "",
-        mood: "",
-        bio: "",
-        aura: "#a78bfa",
-        energy: 70,
-        active: true,
-        lastSeen: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        img: "",
-        discoverable: true,
-      };
-      await setDoc(doc(db, "users", email), userDoc);
+        password
+      );
 
-      // 🔑 Create the public username index doc
-      // doc ID as the username for O(1) lookup; also store fields for redundancy
-      await setDoc(doc(db, "usernames", uname), {
-        username: uname,
-        email,
-        createdAt: serverTimestamp(),
-      });
+      sendEmailVerification(cred.user).catch(() => {});
 
-      localStorage.setItem("presenceUser", JSON.stringify(userDoc));
-      alert("Verification email sent. Please check your inbox or spam folder.");
+      localStorage.setItem(
+        "presenceUser",
+        JSON.stringify({
+          email,
+          username: uname,
+        })
+      );
+
       onSignup?.();
     } catch (err) {
-      console.error("Signup failed:", err);
-      setError(err.code === "auth/email-already-in-use"
-        ? "Email already in use. Try logging in."
-        : (err.message || "Failed to create account."));
+      console.error(err);
+      setError(
+        err.code === "auth/email-already-in-use"
+          ? "Email already in use. Try logging in."
+          : "Signup failed. Try again."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 px-4">
-      <form onSubmit={handleSignup}
-        className="bg-white/90 backdrop-blur-md rounded-3xl p-8 shadow-lg w-full max-w-md border border-white/30">
-        <h1 className="text-2xl font-bold text-indigo-600 mb-6 text-center">
-          Create your Presence Grid account 🌱
-        </h1>
+    <div
+      className="
+        min-h-screen flex items-center justify-center px-6
+        bg-gradient-to-br
+        from-white via-indigo-50 to-purple-50
+        transition-colors duration-700
+      "
+    >
+      <div className="max-w-6xl w-full grid md:grid-cols-2 gap-16 items-center">
+        {/* ================= LEFT CONTENT ================= */}
+        <div className="hidden md:block">
+          <h1 className="text-4xl font-bold mb-6">
+            A calmer way to connect
+          </h1>
 
-        {error && <p className="bg-red-100 text-red-600 p-2 rounded-md text-sm mb-4">{error}</p>}
+          <p className="text-lg text-slate-600 mb-6 max-w-md">
+            Presence Grid is built for intentional conversations —
+            not likes, not feeds, not endless scrolling.
+          </p>
 
-        <input type="email" placeholder="Email address" value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full mb-4 p-3 border border-indigo-100 rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none" required />
+          <ul className="space-y-3 text-slate-700">
+            <li>• No ads. No spam. No pressure</li>
+            <li>• Talk only when you’re actually available</li>
+            <li>• Designed to reduce noise, not create it</li>
+          </ul>
+        </div>
 
-        <input type="text" placeholder="Choose a username"
-          value={username} onChange={(e) => setUsername(e.target.value)}
-          className="w-full mb-4 p-3 border border-indigo-100 rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none" required />
+        {/* ================= SIGNUP CARD ================= */}
+        <form
+          onSubmit={handleSignup}
+          className="
+            bg-white rounded-3xl shadow-xl p-8 w-full max-w-md mx-auto
+          "
+        >
+          <h2 className="text-2xl font-bold text-indigo-600 text-center mb-2">
+            Create your Presence Grid account 🌱
+          </h2>
 
-        <input type="password" placeholder="Password" value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full mb-4 p-3 border border-indigo-100 rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none" required />
+          <p className="text-center text-sm text-slate-500 mb-6">
+            Start with intention. Leave whenever you want.
+          </p>
 
-        <input type="password" placeholder="Confirm password" value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          className="w-full mb-6 p-3 border border-indigo-100 rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none" required />
+          {error && (
+            <div className="mb-4 text-sm text-red-600 bg-red-100 px-3 py-2 rounded-lg">
+              {error}
+            </div>
+          )}
 
-        <button type="submit" disabled={loading}
-          className={`w-full py-3 rounded-xl font-semibold transition text-white ${
-            loading ? "bg-gray-300 cursor-not-allowed"
-                    : "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:shadow-lg"}`}>
-          {loading ? "Creating Account ..." : "Sign Up"}
-        </button>
+          <input
+            type="email"
+            placeholder="Email address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full mb-4 p-3 rounded-xl border focus:ring-2 focus:ring-indigo-500 outline-none"
+            required
+          />
 
-        <p className="text-center text-gray-500 text-sm mt-6">
-          Already have an account?{" "}
-          <button type="button" onClick={onSwitch}
-            className="text-indigo-600 font-medium hover:underline">
-            Log in
+          <input
+            type="text"
+            placeholder="Choose a username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="w-full mb-4 p-3 rounded-xl border focus:ring-2 focus:ring-indigo-500 outline-none"
+            required
+          />
+
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full mb-4 p-3 rounded-xl border focus:ring-2 focus:ring-indigo-500 outline-none"
+            required
+          />
+
+          <input
+            type="password"
+            placeholder="Confirm password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            className="w-full mb-6 p-3 rounded-xl border focus:ring-2 focus:ring-indigo-500 outline-none"
+            required
+          />
+
+          <button
+            type="submit"
+            disabled={loading}
+            className={`
+              w-full py-3 rounded-xl font-semibold text-white transition
+              ${
+                loading
+                  ? "bg-slate-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-90"
+              }
+            `}
+          >
+            {loading ? "Creating account…" : "Sign Up"}
           </button>
-        </p>
-      </form>
+
+          <p className="text-center text-xs text-slate-500 mt-4">
+            No ads • No spam • Delete your account anytime
+          </p>
+
+          <p className="text-center text-sm mt-6">
+            Already have an account?{" "}
+            <button
+              type="button"
+              onClick={onSwitch}
+              className="text-indigo-600 font-semibold hover:underline"
+            >
+              Log in
+            </button>
+          </p>
+        </form>
+      </div>
     </div>
   );
 }
