@@ -17,6 +17,14 @@ import { db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 import usePresence from "./hooks/usePresence";
 
+/* =====================================================
+   DEV MODE FLAG
+   -----------------------------------------------------
+   true  → always show Landing Page (for design/testing)
+   false → normal production behavior
+===================================================== */
+const DEV_SHOW_LANDING = true;
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [stage, setStage] = useState("loading");
@@ -35,6 +43,13 @@ export default function App() {
   useEffect(() => {
     const init = async () => {
       try {
+        /* ---------- DEV OVERRIDE ---------- */
+        if (DEV_SHOW_LANDING) {
+          setStage("landing");
+          return;
+        }
+
+        /* ---------- NO USER ---------- */
         if (!stored) {
           setStage("landing");
           return;
@@ -53,16 +68,19 @@ export default function App() {
 
         setStage(profileComplete ? "dashboard" : "userinfo");
 
+        /* ---------- BACKGROUND FIRESTORE SYNC ---------- */
         try {
           const ref = doc(db, "users", parsed.email);
           const snap = await getDoc(ref);
 
           if (snap.exists()) {
             const fresh = snap.data();
+
             localStorage.setItem(
               "presenceUser",
               JSON.stringify(fresh)
             );
+
             setUser(fresh);
 
             const complete =
@@ -71,7 +89,7 @@ export default function App() {
             setStage(complete ? "dashboard" : "userinfo");
           }
         } catch {
-          // Firestore offline → ignore
+          // Firestore offline → ignore silently
         }
       } catch {
         setStage("landing");
@@ -81,9 +99,11 @@ export default function App() {
     init();
   }, [stored]);
 
-  /* ---------------- AUTH ---------------- */
+  /* ---------------- AUTH HANDLERS ---------------- */
+
   const handleLogin = () => {
     const saved = localStorage.getItem("presenceUser");
+
     if (!saved) {
       setStage("auth");
       return;
@@ -100,6 +120,7 @@ export default function App() {
 
   const handleSignup = () => {
     const saved = localStorage.getItem("presenceUser");
+
     if (!saved) {
       setStage("auth");
       return;
@@ -115,12 +136,14 @@ export default function App() {
     setStage("landing");
   };
 
-  /* ---------------- NAV ---------------- */
+  /* ---------------- NAV HELPERS ---------------- */
+
   const goDashboard = () => setStage("dashboard");
   const goFriends = () => setStage("friends");
   const goNotifications = () => setStage("notifications");
   const goProfile = () => setStage("profile");
   const goChats = () => setStage("chats");
+
   const goChat = (email) => {
     localStorage.setItem("chatWith", email);
     setStage("chat");
