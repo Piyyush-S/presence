@@ -562,7 +562,7 @@ export default function ChatPage({ onBack }) {
       setMicMuted(false);
       setCamOff(!withVideo);
 
-      const { pc, callRef, remoteStream, cleanup } = await webrtcStartCall(
+      const { pc, callRef, cleanup } = await webrtcStartCall(
         me.email,
         chatWith,
         stream,
@@ -586,7 +586,7 @@ export default function ChatPage({ onBack }) {
       setMicMuted(false);
       setCamOff(false);
 
-      const { pc, callRef, remoteStream, cleanup } = await webrtcAnswerCall(
+      const { pc, callRef, cleanup } = await webrtcAnswerCall(
         incoming.id,
         stream,
         (remote) => setRemoteStream(remote)

@@ -1,46 +1,56 @@
-// src/hooks/usePresence.js
-import { useEffect } from "react";
-import { db } from "../firebase";
+import { useEffect, useRef } from "react";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../firebase";
 
 export default function usePresence(email) {
+  const hasRun = useRef(false);
+
   useEffect(() => {
+    // ❌ No email → do nothing
     if (!email) return;
 
-    let stopped = false;
+    // ❌ Prevent infinite re-runs
+    if (hasRun.current) return;
+    hasRun.current = true;
+
     const ref = doc(db, "presence", email);
 
-    const beat = async (active) => {
-      if (stopped) return;
-      await setDoc(
-        ref,
-        {
-          active,
-          lastActive: serverTimestamp(),
-        },
-        { merge: true }
-      );
+    const setOnline = async () => {
+      try {
+        await setDoc(
+          ref,
+          {
+            online: true,
+            lastSeen: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.warn("Presence skipped (offline or blocked)");
+      }
     };
 
-    // initial mark active
-    beat(true);
+    const setOffline = async () => {
+      try {
+        await setDoc(
+          ref,
+          {
+            online: false,
+            lastSeen: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch {
+        // ignore
+      }
+    };
 
-    const onFocus = () => beat(true);
-    const onBlur = () => beat(false);
-    const interval = setInterval(() => beat(document.visibilityState === "visible"), 30_000);
-
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("blur", onBlur);
-    document.addEventListener("visibilitychange", onFocus);
+    setOnline();
+    window.addEventListener("beforeunload", setOffline);
 
     return () => {
-      stopped = true;
-      clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("blur", onBlur);
-      document.removeEventListener("visibilitychange", onFocus);
-      // best-effort mark away
-      setDoc(ref, { active: false, lastActive: serverTimestamp() }, { merge: true });
+      setOffline();
+      window.removeEventListener("beforeunload", setOffline);
     };
   }, [email]);
 }

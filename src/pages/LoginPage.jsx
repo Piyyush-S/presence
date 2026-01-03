@@ -26,9 +26,13 @@ export default function LoginPage({ onLogin, onSwitch }) {
       );
 
       localStorage.setItem(
-        "presenceUser",
-        JSON.stringify({ email: cred.user.email })
-      );
+  "presenceUser",
+  JSON.stringify({
+    uid: cred.user.uid,
+    email: cred.user.email,
+  })
+);
+
 
       onLogin?.();
     } catch (err) {

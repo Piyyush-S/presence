@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 
+/* ================= PAGES ================= */
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
@@ -13,131 +14,103 @@ import ChatsPage from "./pages/ChatsPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsPage from "./pages/TermsPage";
 
-import { db } from "./firebase";
+/* ================= FIREBASE ================= */
+import { auth, db } from "./firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+
+/* ================= PRESENCE ================= */
 import usePresence from "./hooks/usePresence";
 
 /* =====================================================
-   DEV MODE FLAG
-   -----------------------------------------------------
-   true  → always show Landing Page (for design/testing)
-   false → normal production behavior
+   APP
 ===================================================== */
-const DEV_SHOW_LANDING = true;
-
 export default function App() {
   const [user, setUser] = useState(null);
   const [stage, setStage] = useState("loading");
   const [isLogin, setIsLogin] = useState(true);
 
-  /* ---------------- PRESENCE ---------------- */
-  const stored =
-    typeof window !== "undefined"
-      ? localStorage.getItem("presenceUser")
-      : null;
-
-  const me = stored ? JSON.parse(stored) : null;
-  usePresence(me?.email);
-
-  /* ---------------- INIT ---------------- */
+  /* =====================================================
+     AUTH BOOTSTRAP (SINGLE SOURCE OF TRUTH)
+  ===================================================== */
   useEffect(() => {
-    const init = async () => {
-      try {
-        /* ---------- DEV OVERRIDE ---------- */
-        if (DEV_SHOW_LANDING) {
-          setStage("landing");
-          return;
-        }
-
-        /* ---------- NO USER ---------- */
-        if (!stored) {
-          setStage("landing");
-          return;
-        }
-
-        const parsed = JSON.parse(stored);
-        if (!parsed?.email) {
-          setStage("landing");
-          return;
-        }
-
-        setUser(parsed);
-
-        const profileComplete =
-          parsed.city && parsed.gender && parsed.age;
-
-        setStage(profileComplete ? "dashboard" : "userinfo");
-
-        /* ---------- BACKGROUND FIRESTORE SYNC ---------- */
-        try {
-          const ref = doc(db, "users", parsed.email);
-          const snap = await getDoc(ref);
-
-          if (snap.exists()) {
-            const fresh = snap.data();
-
-            localStorage.setItem(
-              "presenceUser",
-              JSON.stringify(fresh)
-            );
-
-            setUser(fresh);
-
-            const complete =
-              fresh.city && fresh.gender && fresh.age;
-
-            setStage(complete ? "dashboard" : "userinfo");
-          }
-        } catch {
-          // Firestore offline → ignore silently
-        }
-      } catch {
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      /* ---------- NOT LOGGED IN ---------- */
+      if (!firebaseUser) {
+        localStorage.removeItem("presenceUser");
+        setUser(null);
         setStage("landing");
+        return;
       }
-    };
 
-    init();
-  }, [stored]);
+      /* ---------- BASIC USER ---------- */
+      const baseUser = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+      };
 
-  /* ---------------- AUTH HANDLERS ---------------- */
+      setUser(baseUser);
+      setStage("userinfo");
 
+      /* ---------- TRY FIRESTORE (SAFE) ---------- */
+      try {
+        const ref = doc(db, "users", firebaseUser.uid);
+        const snap = await getDoc(ref);
+
+        if (!snap.exists()) {
+          // User doc not created yet (signup not completed)
+          return;
+        }
+
+        const data = snap.data();
+        const mergedUser = { ...baseUser, ...data };
+
+        setUser(mergedUser);
+        localStorage.setItem(
+          "presenceUser",
+          JSON.stringify(mergedUser)
+        );
+
+        const complete =
+          mergedUser.city &&
+          mergedUser.gender &&
+          mergedUser.age;
+
+        setStage(complete ? "dashboard" : "userinfo");
+      } catch (err) {
+        console.warn("Firestore unavailable, continuing without it");
+      }
+    });
+
+    return () => unsub();
+  }, []);
+
+  /* =====================================================
+     PRESENCE (SAFE)
+  ===================================================== */
+  usePresence(user?.email);
+
+  /* =====================================================
+     AUTH HANDLERS
+  ===================================================== */
   const handleLogin = () => {
-    const saved = localStorage.getItem("presenceUser");
-
-    if (!saved) {
-      setStage("auth");
-      return;
-    }
-
-    const parsed = JSON.parse(saved);
-    setUser(parsed);
-
-    const complete =
-      parsed.city && parsed.gender && parsed.age;
-
-    setStage(complete ? "dashboard" : "userinfo");
+    setStage("dashboard");
   };
 
   const handleSignup = () => {
-    const saved = localStorage.getItem("presenceUser");
-
-    if (!saved) {
-      setStage("auth");
-      return;
-    }
-
-    setUser(JSON.parse(saved));
     setStage("userinfo");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await auth.signOut();
     localStorage.removeItem("presenceUser");
     setUser(null);
     setStage("landing");
   };
 
-  /* ---------------- NAV HELPERS ---------------- */
-
+  /* =====================================================
+     NAV HELPERS
+  ===================================================== */
   const goDashboard = () => setStage("dashboard");
   const goFriends = () => setStage("friends");
   const goNotifications = () => setStage("notifications");
@@ -149,14 +122,13 @@ export default function App() {
     setStage("chat");
   };
 
-  /* ---------------- UI ---------------- */
-
+  /* =====================================================
+     UI ROUTING
+  ===================================================== */
   if (stage === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
-        <p className="text-gray-600 animate-pulse">
-          Loading Presence Grid 🌿
-        </p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="opacity-60">Loading Pause…</p>
       </div>
     );
   }
@@ -203,6 +175,7 @@ export default function App() {
   if (stage === "userinfo") {
     return (
       <UserInfoForm
+        uid={user?.uid}
         email={user?.email}
         onComplete={goDashboard}
       />

@@ -47,16 +47,16 @@ function Section({ id, children }) {
 }
 
 /* =====================================================
-   PRESENCE (UI ONLY)
+   Pause (UI ONLY)
 ===================================================== */
-function useAmbientPresence() {
+function useAmbientPause() {
   const [text, setText] = useState(null);
 
   useEffect(() => {
     const states = [
       "Someone is available right now",
-      "A few people are present",
-      "Presence is quiet",
+      "A few people are Pause",
+      "Pause is quiet",
       "No one is available — and that’s okay",
       null,
     ];
@@ -86,9 +86,17 @@ function Navbar({ dark, toggleDark, onLogin, onSignup }) {
     ">
       <div className="max-w-7xl mx-auto px-6 md:px-8 h-20 flex items-center justify-between">
 
-        <h1 className="text-lg font-semibold text-indigo-600 dark:text-indigo-400">
-          Presence Grid
-        </h1>
+        <h1
+  className="
+    text-2xl sm:text-3xl
+    font-semibold
+    tracking-wide
+    text-indigo-600 dark:text-indigo-400
+  "
+>
+  Pause
+</h1>
+
 
         <div className="hidden md:flex gap-12 text-lg font-medium">
           <a href="#about" className="opacity-80 hover:opacity-100">About</a>
@@ -133,7 +141,7 @@ export default function LandingPage({
   onOpenPrivacy,
 }) {
   const [dark, toggleDark] = useDarkMode();
-  const presence = useAmbientPresence();
+  const Pause = useAmbientPause();
 
   return (
     <div className={`
@@ -168,10 +176,10 @@ export default function LandingPage({
             A real-time social space where conversations happen only when people are actually available.
           </p>
 
-          {presence && (
+          {Pause && (
             <div className="mt-10 flex justify-center">
               <div className="px-5 py-3 rounded-xl bg-white/70 dark:bg-white/5 border border-black/10 dark:border-white/10">
-                <span className="text-sm opacity-80">{presence}</span>
+                <span className="text-sm opacity-80">{Pause}</span>
               </div>
             </div>
           )}
@@ -197,12 +205,12 @@ export default function LandingPage({
       <Section id="about">
         <div className="max-w-5xl mx-auto text-center">
           <h3 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-10">
-            Why Presence Grid exists
+            Why Pause exists
           </h3>
 
           <p className="text-base sm:text-lg md:text-xl opacity-80 leading-relaxed">
             Most social platforms reward speed, noise, and constant visibility.
-            Presence Grid is built for the opposite.
+            Pause is built for the opposite.
           </p>
 
           <p className="mt-6 text-base sm:text-lg md:text-xl opacity-80 leading-relaxed">
@@ -268,9 +276,6 @@ export default function LandingPage({
   </div>
 ))}
 
-
-
-
         </div>
       </Section>
 
@@ -323,7 +328,7 @@ export default function LandingPage({
               </p>
 
               <p>
-                Presence Grid is built around availability.
+                Pause is built around availability.
                 You appear only when you choose to.
               </p>
             </div>
@@ -398,7 +403,7 @@ export default function LandingPage({
 
             <div>
               <h4 className="text-2xl sm:text-3xl font-semibold mb-8 text-indigo-500 text-center md:text-left">
-                Presence Grid
+                Pause
               </h4>
 
               <ul className="space-y-4 text-base sm:text-lg opacity-80">
@@ -423,17 +428,17 @@ export default function LandingPage({
               </p>
 
               <p>
-                I started building Presence Grid because most social
+                I started building Pause because most social
                 apps feel rushed and noisy, with constant pressure to stay visible.
               </p>
 
               <p>
-                I wanted something quieter — where being unavailable
+                I wanted something quieter where being unavailable
                 is normal, and conversations don’t feel like tasks.
               </p>
 
               <p>
-                Presence Grid is my attempt at that.
+                Pause is my attempt at that.
                 It’s slow on purpose.
               </p>
 
@@ -465,7 +470,7 @@ export default function LandingPage({
       <Reveal>
         <Section>
           <h3 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-16 text-center">
-            What Presence Grid believes
+            What Pause believes
           </h3>
 
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-12 text-base sm:text-lg">
@@ -499,7 +504,7 @@ export default function LandingPage({
                 <span className="transition group-open:rotate-180">⌄</span>
               </summary>
               <p className="mt-4 opacity-80 leading-relaxed">
-                No. Presence Grid is about conversations, not matching,
+                No. Pause is about conversations, not matching,
                 swiping, or competing profiles.
               </p>
             </details>
@@ -541,7 +546,7 @@ export default function LandingPage({
                 <span className="transition group-open:rotate-180">⌄</span>
               </summary>
               <p className="mt-4 opacity-80 leading-relaxed">
-                No. Presence Grid is designed to sit quietly alongside your life.
+                No. Pause is designed to sit quietly alongside your life.
               </p>
             </details>
           </div>
@@ -557,7 +562,7 @@ export default function LandingPage({
             </h3>
 
             <p className="text-base sm:text-lg md:text-xl opacity-80 leading-relaxed">
-              Presence Grid doesn’t reward noise.
+              Pause doesn’t reward noise.
               It waits for you.
             </p>
 
@@ -583,7 +588,7 @@ export default function LandingPage({
       {/* ================= FOOTER ================= */}
       <footer className="py-16 border-t border-black/10 dark:border-white/10">
         <div className="max-w-6xl mx-auto px-6 md:px-8 flex flex-col md:flex-row justify-between items-center gap-6 text-sm opacity-70">
-          <p>© {new Date().getFullYear()} Presence Grid</p>
+          <p>© {new Date().getFullYear()} Pause </p>
 
           <div className="flex gap-6">
             <button onClick={onOpenTerms} className="hover:underline">
