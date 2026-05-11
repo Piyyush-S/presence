@@ -1,1076 +1,421 @@
-import React, { useEffect, useRef, useState } from "react";
-import useDarkMode from "../hooks/useDarkMode";
-
+import { useState, useEffect, useRef } from "react";
 
 const noop = () => {};
 
-/* =====================================================
-   UTIL: classNames helper
-===================================================== */
-function cn(...classes) {
-  return classes.filter(Boolean).join(" ");
+const AMBIENT = [
+  "Someone is here right now",
+  "A few people are present",
+  "Pause is quiet",
+  "No one around — that's fine",
+];
+
+const FEATURES = [
+  { title: "Availability toggle", body: "You appear only when you choose to. Invisible by default." },
+  { title: "Timed conversations", body: "Every conversation ends naturally. No dragging on forever." },
+  { title: "No inbox pressure", body: "No unread counts. Nothing piles up while you're away." },
+  { title: "Zero public metrics", body: "No likes, streaks, or follower counts. Not now, not ever." },
+  { title: "Session-based chats", body: "Each conversation exists only in that moment." },
+  { title: "Quiet presence", body: "See who's around without disturbing them." },
+];
+
+const BELIEFS = [
+  ["Silence is valid", "Not replying immediately is a boundary, not a flaw."],
+  ["Attention isn't currency", "No performance, no audience, no applause meter."],
+  ["Presence is a choice", "You decide when you show up. Always."],
+  ["Conversations can end", "Nothing here is designed to trap you."],
+  ["Small is enough", "One real conversation beats a thousand notifications."],
+  ["Calm beats clever", "No tricks. No dark patterns. No manipulation."],
+];
+
+const FAQS = [
+  ["Is this a dating app?", "No. Pause is about conversation, not profiles or matching."],
+  ["Why are conversations time-limited?", "Natural endings reduce pressure. Conversations feel lighter when they're allowed to finish."],
+  ["What if I don't reply?", "Nothing. No penalties, no reminders, no streaks broken."],
+  ["Is my availability public?", "Only when you choose to be present. Otherwise you're invisible."],
+  ["Does this replace other social apps?", "No. Pause is meant to sit quietly alongside your life."],
+];
+
+function useDark() {
+  const [dark, setDark] = useState(true);
+  return [dark, () => setDark(d => !d)];
 }
 
-/* =====================================================
-   AMBIENT PRESENCE (UI ONLY, NO LOGIC)
-===================================================== */
-function useAmbientPause() {
-  const [status, setStatus] = useState(null);
-
+function useAmbient() {
+  const [i, setI] = useState(0);
   useEffect(() => {
-    const states = [
-      "Someone is available right now",
-      "A few people are present",
-      "Pause is quiet",
-      "No one is available — and that’s okay",
-      null,
-    ];
-
-    const pick = () =>
-      states[Math.floor(Math.random() * states.length)];
-
-    setStatus(pick());
-    const id = setInterval(() => setStatus(pick()), 8000);
-
+    const id = setInterval(() => setI(n => (n + 1) % AMBIENT.length), 6000);
     return () => clearInterval(id);
   }, []);
-
-  return status;
+  return AMBIENT[i];
 }
 
-/* =====================================================
-   SCROLL REVEAL HOOK
-===================================================== */
-function useReveal({ threshold = 0.15, once = true } = {}) {
+function useReveal() {
   const ref = useRef(null);
-
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          el.classList.add("reveal-visible");
-          if (once) observer.unobserve(el);
-        }
-      },
-      { threshold }
-    );
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [threshold, once]);
-
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) { el.dataset.v = "1"; obs.unobserve(el); }
+    }, { threshold: 0.1 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
   return ref;
 }
 
-/* =====================================================
-   REVEAL WRAPPER
-===================================================== */
-function Reveal({ id, children }) {
+function R({ children, d = 0 }) {
   const ref = useReveal();
   return (
-    <div ref={ref} id={id} className="reveal">
+    <div ref={ref} style={{ "--d": `${d}ms` }} className="rev">
       {children}
     </div>
   );
 }
 
-/* =====================================================
-   SECTION WRAPPER
-===================================================== */
-function Section({ id, children, className }) {
-  return (
-    <section
-      id={id}
-      className={cn("py-28 md:py-36", className)}
-    >
-      <div className="max-w-6xl mx-auto px-6 md:px-8">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-/* =====================================================
-   TEXT BLOCK (used later everywhere)
-===================================================== */
-function TextBlock({ title, text, align = "center" }) {
-  return (
-    <div className={cn("max-w-5xl mx-auto", align === "center" && "text-center")}>
-      {title && (
-        <h3 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-10">
-          {title}
-        </h3>
-      )}
-      <p className="text-base sm:text-lg md:text-xl opacity-80 leading-relaxed">
-        {text}
-      </p>
-    </div>
-  );
-}
-
-/* =====================================================
-   DIVIDER (quiet visual separator)
-===================================================== */
-function Divider({ text }) {
-  return (
-    <div className="py-24 md:py-32 text-center text-base md:text-lg opacity-60">
-      {text}
-    </div>
-  );
-}
-/* =====================================================
-   LandingPage.jsx — PART 2 / 8
-   Navbar + layout helpers
-===================================================== */
-
-/* =====================================================
-   NAV LINK
-===================================================== */
-function NavLink({ href, children }) {
-  return (
-    <a
-      href={href}
-      className="
-        opacity-70 hover:opacity-100
-        transition-opacity
-        cursor-pointer
-      "
-    >
-      {children}
-    </a>
-  );
-}
-
-/* =====================================================
-   NAVBAR BUTTON
-===================================================== */
-function NavButton({ onClick = noop, children, primary = false }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "px-4 py-2 rounded-lg text-sm font-medium transition",
-        primary
-          ? "bg-indigo-600 text-white hover:bg-indigo-500"
-          : "border border-black/20 dark:border-white/20 opacity-80 hover:opacity-100"
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-/* =====================================================
-   THEME TOGGLE
-===================================================== */
-function ThemeToggle({ dark, toggleDark }) {
-  return (
-    <button
-      onClick={toggleDark}
-      aria-label="Toggle theme"
-      className="
-        p-2 rounded-lg
-        border border-black/20 dark:border-white/20
-        transition
-      "
-    >
-      {dark ? "☀️" : "🌙"}
-    </button>
-  );
-}
-
-/* =====================================================
-   NAVBAR
-===================================================== */
-function Navbar({
-  dark,
-  toggleDark,
-  onLogin = noop,
-  onSignup = noop,
-}) {
-  return (
-    <nav
-      className="
-        sticky top-0 z-50
-        backdrop-blur-xl
-        bg-[#F8F6F6]/80 dark:bg-[#8a8583]/80
-        border-b border-black/10 dark:border-white/10
-      "
-    >
-      <div
-        className="
-          max-w-7xl mx-auto
-          px-6 md:px-8
-          h-20
-          flex items-center justify-between
-        "
-      >
-       {/* BRAND */}
-
-<a
-  href="/"
-  className="flex items-center"
->
-  <img
-    src="/logo.png"
-    alt="Pause"
-    className="h-14 sm:h-16 w-auto select-none"
-  />
-</a>
-
-
-        {/* DESKTOP LINKS */}
-        <div className="hidden md:flex gap-12 text-lg font-medium">
-          <NavLink href="#about">About</NavLink>
-          <NavLink href="#features">Features</NavLink>
-          <NavLink href="#faq">Q&amp;A</NavLink>
-        </div>
-
-        {/* ACTIONS */}
-        <div className="flex items-center gap-3">
-          <ThemeToggle dark={dark} toggleDark={toggleDark} />
-
-          <button
-            onClick={onLogin}
-            className="
-              hidden sm:inline
-              text-sm
-              opacity-70 hover:opacity-100
-              transition-opacity
-            "
-          >
-            Login
-          </button>
-
-          <NavButton onClick={onSignup} primary>
-            Get Started
-          </NavButton>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
-/* =====================================================
-   PAGE CONTAINER
-===================================================== */
-function PageContainer({ dark, children }) {
-  return (
-    <div
-      className={cn(
-        "min-h-screen transition-colors duration-700",
-        dark
-  ? "bg-[#0B0B0F] text-slate-100"
-  : "bg-[#F7F4F4] text-slate-900"
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-/* =====================================================
-   CENTERED CONTAINER
-===================================================== */
-function Centered({ children }) {
-  return (
-    <div className="relative max-w-3xl mx-auto text-center">
-      {children}
-    </div>
-  );
-}
-/* =====================================================
-   LandingPage.jsx — PART 3 / 8
-   HERO SECTION
-===================================================== */
-
-/* =====================================================
-   GLOW BACKGROUND
-===================================================== */
-function GlowBackground() {
-  return (
-    <>
-      <div className="absolute w-[420px] h-[420px] bg-indigo-600/20 blur-[140px] rounded-full -top-32 -left-32" />
-      <div className="absolute w-[360px] h-[360px] bg-purple-500/20 blur-[140px] rounded-full bottom-0 right-0" />
-      <div className="absolute w-[260px] h-[260px] bg-pink-500/20 blur-[120px] rounded-full top-1/3 left-1/2 -translate-x-1/2" />
-    </>
-  );
-}
-
-/* =====================================================
-   AMBIENT STATUS PILL
-===================================================== */
-function AmbientStatus({ text }) {
-  if (!text) return null;
-
-  return (
-    <div className="mt-10 flex justify-center">
-      <div
-        className="
-          px-5 py-3
-          rounded-xl
-          bg-white/70 dark:bg-white/5
-          border border-black/10 dark:border-white/10
-          backdrop-blur
-        "
-      >
-        <span className="text-sm opacity-80">
-          {text}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/* =====================================================
-   HERO CTA BUTTON
-===================================================== */
-function HeroButton({ onClick, primary, children }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "px-10 py-4 rounded-xl font-semibold transition",
-        primary
-          ? "bg-indigo-600 text-white hover:bg-indigo-500"
-          : "border border-black/20 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/5"
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-/* =====================================================
-   SCROLL HINT
-===================================================== */
-function ScrollHint() {
-  return (
-    <p className="mt-8 text-sm opacity-50">
-      Scroll slowly ↓
-    </p>
-  );
-}
-
-/* =====================================================
-   HERO SECTION
-===================================================== */
-function Hero({
-  ambientStatus,
-  onLogin = noop,
-  onSignup = noop,
-}) {
-  return (
-    <section
-      className="
-        relative
-        min-h-[calc(100vh-80px)]
-        flex items-center justify-center
-        px-6 md:px-8
-        overflow-hidden
-      "
-    >
-      <GlowBackground />
-
-      <Centered>
-        <h2 className="text-4xl sm:text-5xl md:text-7xl font-bold mb-6">
-          Be present.
-          <br />
-          <span className="text-indigo-500">
-            Not loud.
-          </span>
-        </h2>
-
-        <p className="max-w-2xl mx-auto text-base sm:text-lg md:text-2xl opacity-80">
-          A real-time social space where conversations happen
-          only when people are actually available.
-        </p>
-
-        <AmbientStatus text={ambientStatus} />
-
-        <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
-          <HeroButton onClick={onSignup} primary>
-            Start calmly
-          </HeroButton>
-
-          <HeroButton onClick={onLogin}>
-            Log in
-          </HeroButton>
-        </div>
-
-        <ScrollHint />
-      </Centered>
-    </section>
-  );
-}
-/* =====================================================
-   LandingPage.jsx — PART 4 / 8
-   ABOUT + PHILOSOPHY
-===================================================== */
-
-/* =====================================================
-   ABOUT BLOCK
-===================================================== */
-function AboutSection() {
-  return (
-    <Section id="about">
-      <div className="max-w-5xl mx-auto text-center">
-        <h3 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-10">
-          Why Pause exists
-        </h3>
-
-        <p className="text-base sm:text-lg md:text-xl opacity-80 leading-relaxed">
-          Most social platforms are built around speed, noise,
-          and constant visibility.
-        </p>
-
-        <p className="mt-6 text-base sm:text-lg md:text-xl opacity-80 leading-relaxed">
-          Pause is built for the opposite.
-          You appear only when you are available.
-          Silence is never punished.
-        </p>
-      </div>
-    </Section>
-  );
-}
-
-/* =====================================================
-   PHILOSOPHY GRID ITEM
-===================================================== */
-function PhilosophyItem({ title, text }) {
-  return (
-    <div className="space-y-4">
-      <h4 className="font-semibold text-lg">
-        {title}
-      </h4>
-      <p className="opacity-80 leading-relaxed">
-        {text}
-      </p>
-    </div>
-  );
-}
-
-/* =====================================================
-   PHILOSOPHY SECTION
-===================================================== */
-function PhilosophySection() {
-  return (
-    <Reveal>
-      <Section>
-        <h3 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-16 text-center">
-          A different way to be social
-        </h3>
-
-        <div className="grid md:grid-cols-2 gap-12 md:gap-20 text-base sm:text-lg leading-relaxed">
-          <div className="space-y-6 opacity-80">
-            <p>
-              Most social apps are designed around attention.
-              They reward activity, visibility, and reaction speed.
-            </p>
-
-            <p>
-              Pause is designed around availability.
-              You show up only when you choose to.
-            </p>
-          </div>
-
-          <div className="space-y-6 opacity-80">
-            <p>
-              Silence is not failure here.
-              Missed messages do not pile up.
-            </p>
-
-            <p>
-              Conversations end on purpose,
-              so they don’t turn into obligations.
-            </p>
-          </div>
-        </div>
-      </Section>
-    </Reveal>
-  );
-}
-
-/* =====================================================
-   BELIEF GRID
-===================================================== */
-function BeliefGrid() {
-  const beliefs = [
-    ["Silence is valid", "Not replying immediately is a boundary, not a flaw."],
-    ["Attention isn’t currency", "No likes, streaks, or public performance."],
-    ["Availability is intentional", "Presence is always a choice."],
-    ["Conversations can end", "Nothing is designed to trap you."],
-    ["Small is okay", "Quality moments matter more than scale."],
-    ["Calm beats clever", "No tricks, no dark patterns."],
-  ];
-
-  return (
-    <Reveal>
-      <Section>
-        <h3 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-16 text-center">
-          What Pause believes
-        </h3>
-
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-12 text-base sm:text-lg">
-          {beliefs.map(([title, text], i) => (
-            <PhilosophyItem
-              key={i}
-              title={title}
-              text={text}
-            />
-          ))}
-        </div>
-      </Section>
-    </Reveal>
-  );
-}
-
-/* =====================================================
-   QUIET DIVIDER
-===================================================== */
-function QuietDivider() {
-  return (
-    <Divider text={
-      <>
-        Most of the time, nothing happens here.
-        <br />
-        That’s intentional.
-      </>
-    } />
-  );
-}
-/* =====================================================
-   LandingPage.jsx — PART 5 / 8
-   FEATURES + COMPARISON
-===================================================== */
-
-/* =====================================================
-   FEATURE CARD
-===================================================== */
-function FeatureCard({ title, description }) {
-  return (
-    <div
-      className="
-        rounded-2xl p-10
-        bg-[#F8F6F6] dark:bg-[#2A2A2E]
-        border border-black/10 dark:border-white/10
-        shadow-sm
-        transition
-        hover:-translate-y-1
-        hover:shadow-lg
-      "
-    >
-      <h4 className="text-xl md:text-2xl font-semibold mb-4 text-black dark:text-white">
-        {title}
-      </h4>
-
-      <p className="text-base md:text-lg leading-relaxed text-black/70 dark:text-white/70">
-        {description}
-      </p>
-    </div>
-  );
-}
-
-/* =====================================================
-   FEATURES SECTION
-===================================================== */
-function FeaturesSection() {
-  const features = [
-    {
-      title: "Availability toggle",
-      description:
-        "Go present only when you want to talk. Stay invisible otherwise.",
-    },
-    {
-      title: "Timed conversations",
-      description:
-        "Every conversation ends naturally. No dragging, no pressure.",
-    },
-    {
-      title: "No unread pressure",
-      description:
-        "No message counts, no inbox anxiety, nothing piling up.",
-    },
-    {
-      title: "Zero public metrics",
-      description:
-        "No likes, followers, streaks, or visible numbers.",
-    },
-    {
-      title: "Session-based chats",
-      description:
-        "Each interaction exists only in the moment.",
-    },
-    {
-      title: "Quiet presence",
-      description:
-        "See who is available without interrupting them.",
-    },
-  ];
-
-  return (
-    <Section id="features">
-      <h3 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-20 text-center">
-        Features
-      </h3>
-
-      <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-10">
-        {features.map((f, i) => (
-          <FeatureCard
-            key={i}
-            title={f.title}
-            description={f.description}
-          />
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-/* =====================================================
-   COMPARISON COLUMN
-===================================================== */
-function ComparisonColumn({ title, items, highlight }) {
-  return (
-    <div>
-      <h4
-        className={cn(
-          "text-2xl sm:text-3xl font-semibold mb-8",
-          highlight && "text-indigo-500"
-        )}
-      >
-        {title}
-      </h4>
-
-      <ul className="space-y-4 text-base sm:text-lg opacity-80">
-        {items.map((item, i) => (
-          <li key={i}>• {item}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/* =====================================================
-   COMPARISON SECTION
-===================================================== */
-function ComparisonSection() {
-  return (
-    <Reveal>
-      <Section>
-        <div className="grid md:grid-cols-2 gap-16 md:gap-28">
-          <ComparisonColumn
-            title="Most social apps"
-            items={[
-              "Encourage constant activity",
-              "Punish silence",
-              "Never let conversations end",
-              "Measure worth with numbers",
-              "Create anxiety around replies",
-            ]}
-          />
-
-          <ComparisonColumn
-            title="Pause"
-            highlight
-            items={[
-              "Rewards availability",
-              "Protects silence",
-              "Ends conversations intentionally",
-              "No public metrics",
-              "Does not demand attention",
-            ]}
-          />
-        </div>
-      </Section>
-    </Reveal>
-  );
-}
-/* =====================================================
-   LandingPage.jsx — PART 6 / 8
-   TIMELINE + SCENARIOS
-===================================================== */
-
-/* =====================================================
-   TIMELINE ROW
-===================================================== */
-function TimelineRow({ time, text }) {
-  return (
-    <div className="grid grid-cols-[90px_1fr] sm:grid-cols-[120px_1fr] gap-6 sm:gap-10">
-      <div className="font-medium">{time}</div>
-      <div className="opacity-80 leading-relaxed">{text}</div>
-    </div>
-  );
-}
-
-/* =====================================================
-   TIMELINE SECTION
-===================================================== */
-function TimelineSection() {
-  return (
-    <Reveal>
-      <Section>
-        <h3 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-16 text-center">
-          Presence over a typical day
-        </h3>
-
-        <div className="max-w-3xl mx-auto space-y-12 text-base sm:text-lg">
-          <TimelineRow
-            time="Morning"
-            text="Mostly quiet. A few people check in."
-          />
-          <TimelineRow
-            time="Afternoon"
-            text="Some availability. Short conversations happen."
-          />
-          <TimelineRow
-            time="Evening"
-            text="Most conversations happen during this time."
-          />
-          <TimelineRow
-            time="Night"
-            text="Silence returns. Nothing breaks."
-          />
-        </div>
-      </Section>
-    </Reveal>
-  );
-}
-
-/* =====================================================
-   SCENARIO CARD
-===================================================== */
-function ScenarioCard({ question, answer }) {
-  return (
-    <div>
-      <h4 className="font-semibold mb-3">{question}</h4>
-      <p className="opacity-80 leading-relaxed">{answer}</p>
-    </div>
-  );
-}
-
-/* =====================================================
-   SCENARIOS SECTION
-===================================================== */
-function ScenariosSection() {
-  const scenarios = [
-    {
-      q: "No one is available?",
-      a: "Nothing. You leave. There’s no penalty for absence.",
-    },
-    {
-      q: "The timer ends?",
-      a: "The conversation ends. No pressure to continue.",
-    },
-    {
-      q: "Someone doesn’t reply?",
-      a: "Nothing bad happens. Silence is allowed.",
-    },
-    {
-      q: "You leave mid-conversation?",
-      a: "The session ends quietly. No explanations required.",
-    },
-  ];
-
-  return (
-    <Reveal>
-      <Section>
-        <h3 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-16 text-center">
-          What happens when…
-        </h3>
-
-        <div className="grid md:grid-cols-2 gap-12 max-w-5xl mx-auto text-base sm:text-lg">
-          {scenarios.map((s, i) => (
-            <ScenarioCard
-              key={i}
-              question={s.q}
-              answer={s.a}
-            />
-          ))}
-        </div>
-      </Section>
-    </Reveal>
-  );
-}
-/* =====================================================
-   LandingPage.jsx — PART 7 / 8
-   FAQ + FOUNDER
-===================================================== */
-
-/* =====================================================
-   FAQ ITEM
-===================================================== */
-function FAQItem({ question, answer }) {
-  return (
-    <details className="group py-6">
-      <summary
-        className="
-          flex justify-between items-center
-          cursor-pointer list-none
-          text-base sm:text-lg font-medium
-        "
-      >
-        {question}
-        <span className="transition group-open:rotate-180">⌄</span>
-      </summary>
-
-      <p className="mt-4 opacity-80 leading-relaxed">
-        {answer}
-      </p>
-    </details>
-  );
-}
-
-/* =====================================================
-   FAQ SECTION
-===================================================== */
-function FAQSection() {
-  const faqs = [
-    {
-      q: "Is this a dating app?",
-      a: "No. Pause is about conversations, not matching, swiping, or competing profiles.",
-    },
-    {
-      q: "Why are conversations time-limited?",
-      a: "Natural endings reduce pressure. Conversations feel lighter when they are allowed to end.",
-    },
-    {
-      q: "What if I don’t reply?",
-      a: "Nothing happens. There are no penalties, streaks, or reminders.",
-    },
-    {
-      q: "Is my availability public?",
-      a: "Only when you choose to be present. Otherwise, you are invisible.",
-    },
-    {
-      q: "Is this meant to replace other social apps?",
-      a: "No. Pause is designed to sit quietly alongside your life.",
-    },
-  ];
-
-  return (
-    <Reveal>
-      <Section id="faq">
-        <h3 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-16 text-center">
-          Frequently asked questions
-        </h3>
-
-        <div className="max-w-3xl mx-auto divide-y divide-black/10 dark:divide-white/10">
-          {faqs.map((f, i) => (
-            <FAQItem
-              key={i}
-              question={f.q}
-              answer={f.a}
-            />
-          ))}
-        </div>
-      </Section>
-    </Reveal>
-  );
-}
-
-/* =====================================================
-   FOUNDER SECTION
-===================================================== */
-function FounderSection() {
-  return (
-    <Reveal>
-      <Section id="founder">
-        <div className="grid md:grid-cols-2 gap-16 md:gap-24 items-center">
-          <div className="space-y-6 text-base sm:text-lg opacity-80 leading-relaxed">
-            <p>
-              Hi, I’m <span className="font-medium">Piyush Sharma</span>.
-            </p>
-
-            <p>
-              I started building Pause because most social apps feel loud and rushed.
-               There’s always pressure to reply fast,
-              stay visible, and keep up, like being online is a job you never applied for.
-            </p>
-
-            <p>
-              I wanted something quieter. A place where its okay to be unavailable.
-               Where conversations can breathe, and silence isn’t awkward or punished.
-            </p>
-
-            <p>
-              Pause is my attempt to create that space.
-              It’s slow by design, and that’s the point.
-            </p>
-
-            <a
-              href="https://instagram.com/piyyush.z"
-              target="_blank"
-              rel="noreferrer"
-              className="
-                inline-block mt-6
-                text-indigo-500 font-medium
-                hover:underline
-              "
-            >
-              Follow the build on Instagram →
-            </a>
-          </div>
-
-          <div className="flex justify-center">
-            <div className="relative">
-              
-              <img
-                src="/founder.jpg"
-                alt="Piyush Sharma"
-                className="
-                  relative
-                  w-56 h-56 sm:w-64 sm:h-64 md:w-72 md:h-72
-                  rounded-full object-cover
-                  border border-black/10 dark:border-white/10
-                  shadow-2xl
-                "
-              />
-            </div>
-          </div>
-        </div>
-      </Section>
-    </Reveal>
-  );
-}
-/* =====================================================
-   LandingPage.jsx — PART 8 / 8
-   FOOTER + STYLES + FINAL EXPORT
-===================================================== */
-
-/* =====================================================
-   FOOTER
-===================================================== */
-function Footer({ onOpenTerms = noop, onOpenPrivacy = noop }) {
-  return (
-    <footer className="py-16 border-t border-black/10 dark:border-white/10">
-      <div
-        className="
-          max-w-6xl mx-auto
-          px-6 md:px-8
-          flex flex-col md:flex-row
-          justify-between items-center
-          gap-6
-          text-sm opacity-70
-        "
-      >
-        <p>© {new Date().getFullYear()} Pause</p>
-
-        <div className="flex gap-6">
-          <button
-            onClick={onOpenTerms}
-            className="hover:underline"
-          >
-            Terms
-          </button>
-          <button
-            onClick={onOpenPrivacy}
-            className="hover:underline"
-          >
-            Privacy
-          </button>
-        </div>
-      </div>
-    </footer>
-  );
-}
-
-/* =====================================================
-   GLOBAL REVEAL STYLES
-===================================================== */
-function RevealStyles() {
-  return (
-    <style>{`
-      .reveal {
-        opacity: 0;
-        transform: translateY(28px);
-        transition:
-          opacity 0.8s ease,
-          transform 0.8s ease;
-      }
-
-      .reveal-visible {
-        opacity: 1;
-        transform: translateY(0);
-      }
-
-      html {
-        scroll-behavior: smooth;
-      }
-    `}</style>
-  );
-}
-
-/* =====================================================
-   FINAL LANDING PAGE EXPORT
-===================================================== */
 export default function LandingPage({
   onLogin = noop,
   onSignup = noop,
   onOpenTerms = noop,
   onOpenPrivacy = noop,
 }) {
-  const [dark, toggleDark] = useDarkMode();
-  const ambientStatus = useAmbientPause();
+  const [dark, toggleDark] = useDark();
+  const ambient = useAmbient();
+  const [openFaq, setOpenFaq] = useState(null);
+
+  const bg     = dark ? "#000000" : "#ffffff";
+  const fg     = dark ? "#ffffff" : "#000000";
+  const muted  = dark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)";
+  const border = dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
+  const card   = dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)";
+  const accent = dark ? "#7B9EFF" : "#2B4FFF";
+
+  const W = { maxWidth: 1200, margin: "0 auto", padding: "0 40px" };
 
   return (
-    <PageContainer dark={dark}>
-      {/* NAVBAR */}
-      <Navbar
-        dark={dark}
-        toggleDark={toggleDark}
-        onLogin={onLogin}
-        onSignup={onSignup}
-      />
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&family=Manrope:wght@300;400;500&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body { font-family: 'Manrope', sans-serif; -webkit-font-smoothing: antialiased; }
+        .rev {
+          opacity: 0; transform: translateY(16px);
+          transition: opacity .65s ease var(--d,0ms), transform .65s ease var(--d,0ms);
+        }
+        .rev[data-v="1"] { opacity: 1; transform: none; }
+        @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        .caret { display:inline-block; width:2px; height:.9em; background:currentColor; margin-left:3px; vertical-align:-1px; animation:blink 1.1s step-end infinite; }
+        a { text-decoration: none; color: inherit; }
+        button { font-family: inherit; }
+      `}</style>
 
-      {/* HERO */}
-      <Hero
-        ambientStatus={ambientStatus}
-        onLogin={onLogin}
-        onSignup={onSignup}
-      />
+      <div style={{ background: bg, color: fg, minHeight: "100vh", transition: "background .3s, color .3s" }}>
 
-      {/* ABOUT */}
-      <AboutSection />
+        {/* NAV */}
+        <nav style={{
+          position: "sticky", top: 0, zIndex: 200,
+          background: bg, borderBottom: `1px solid ${border}`,
+          transition: "background .3s, border-color .3s",
+        }}>
+          <div style={{ ...W, height: 58, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 
-      {/* PHILOSOPHY */}
-      <PhilosophySection />
+            <a href="/" style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, letterSpacing: "-.01em" }}>
+              pause
+            </a>
 
-      {/* BELIEFS */}
-      <BeliefGrid />
+            <div style={{ display: "flex", gap: 28 }}>
+              {[["About","#about"],["Features","#features"],["Q&A","#faq"]].map(([label, href]) => (
+                <a key={href} href={href} style={{ fontSize: 13, color: muted, transition: "color .2s", letterSpacing: ".01em" }}
+                  onMouseEnter={e => e.target.style.color = fg}
+                  onMouseLeave={e => e.target.style.color = muted}>
+                  {label}
+                </a>
+              ))}
+            </div>
 
-      {/* QUIET DIVIDER */}
-      <QuietDivider />
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button onClick={toggleDark} aria-label="toggle theme" style={{
+                background: "none", border: `1px solid ${border}`, color: fg,
+                width: 32, height: 32, borderRadius: 7, cursor: "pointer",
+                fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "border-color .2s",
+              }}>
+                {dark ? "○" : "●"}
+              </button>
+              <button onClick={onLogin} style={{
+                background: "none", border: "none", color: muted, cursor: "pointer",
+                fontSize: 13, padding: "0 6px", transition: "color .2s",
+              }}
+                onMouseEnter={e => e.target.style.color = fg}
+                onMouseLeave={e => e.target.style.color = muted}>
+                Log in
+              </button>
+              <button onClick={onSignup} style={{
+                background: fg, color: bg, border: "none",
+                padding: "7px 16px", borderRadius: 7, cursor: "pointer",
+                fontSize: 13, fontWeight: 500, transition: "opacity .2s",
+              }}
+                onMouseEnter={e => e.target.style.opacity = ".8"}
+                onMouseLeave={e => e.target.style.opacity = "1"}>
+                Get started
+              </button>
+            </div>
+          </div>
+        </nav>
 
-      {/* FEATURES */}
-      <FeaturesSection />
+        {/* HERO */}
+        <section style={{ ...W, padding: "110px 40px 90px" }}>
+          <R>
+            <div key={ambient} style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              border: `1px solid ${border}`, borderRadius: 100,
+              padding: "4px 14px", marginBottom: 48, fontSize: 12,
+              color: muted, letterSpacing: ".04em",
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: accent, display: "inline-block" }} />
+              {ambient}
+            </div>
+          </R>
 
-      {/* COMPARISON */}
-      <ComparisonSection />
+          <R d={50}>
+            <h1 style={{
+              fontFamily: "'Playfair Display', serif",
+              fontSize: "clamp(56px, 10vw, 120px)",
+              lineHeight: 1.0, letterSpacing: "-.03em",
+              maxWidth: 860, marginBottom: 32, fontWeight: 400,
+            }}>
+              Be present.<br />
+              <em style={{ color: accent, fontStyle: "italic" }}>Not loud.</em>
+              <span className="caret" />
+            </h1>
+          </R>
 
-      {/* TIMELINE */}
-      <TimelineSection />
+          <R d={100}>
+            <p style={{ fontSize: "clamp(15px, 1.8vw, 18px)", color: muted, lineHeight: 1.8, maxWidth: 480, marginBottom: 44 }}>
+              A real-time social space where conversations happen only when people are actually available.
+            </p>
+          </R>
 
-      {/* SCENARIOS */}
-      <ScenariosSection />
+          <R d={150}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              <button onClick={onSignup} style={{
+                background: fg, color: bg, border: "none",
+                padding: "13px 28px", borderRadius: 9, cursor: "pointer",
+                fontSize: 14, fontWeight: 500, transition: "opacity .2s",
+              }}
+                onMouseEnter={e => e.target.style.opacity = ".8"}
+                onMouseLeave={e => e.target.style.opacity = "1"}>
+                Start calmly →
+              </button>
+              <button onClick={onLogin} style={{
+                background: "none", color: muted, border: `1px solid ${border}`,
+                padding: "13px 28px", borderRadius: 9, cursor: "pointer",
+                fontSize: 14, transition: "color .2s, border-color .2s",
+              }}
+                onMouseEnter={e => { e.target.style.color = fg; e.target.style.borderColor = muted; }}
+                onMouseLeave={e => { e.target.style.color = muted; e.target.style.borderColor = border; }}>
+                Log in
+              </button>
+            </div>
+          </R>
+        </section>
 
-      {/* FAQ */}
-      <FAQSection />
+        {/* TICKER */}
+        <div style={{ borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, overflow: "hidden", padding: "13px 0" }}>
+          <div style={{ display: "flex", gap: 56, animation: "ticker 20s linear infinite", width: "max-content" }}>
+            {[...Array(6)].flatMap(() =>
+              ["availability", "silence", "presence", "calm", "no metrics", "no pressure", "be here"]
+            ).map((t, i) => (
+              <span key={i} style={{ fontSize: 11, letterSpacing: ".18em", textTransform: "uppercase", color: muted, whiteSpace: "nowrap" }}>
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
 
-      {/* FOUNDER */}
-      <FounderSection />
+        {/* ABOUT */}
+        <section id="about" style={{ borderBottom: `1px solid ${border}` }}>
+          <div style={{ ...W, padding: "96px 40px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "start" }}>
+            <R>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(30px, 4vw, 52px)", lineHeight: 1.1, letterSpacing: "-.02em", fontWeight: 400 }}>
+                Why Pause exists
+              </h2>
+            </R>
+            <R d={70}>
+              <p style={{ fontSize: 16, color: muted, lineHeight: 1.85, marginBottom: 18 }}>
+                Most social platforms are built around speed, noise, and constant visibility. Reply fast. Stay visible. Keep up. Being online feels like a job you never applied for.
+              </p>
+              <p style={{ fontSize: 16, color: muted, lineHeight: 1.85 }}>
+                Pause is built for the opposite. You appear only when you are available. Silence is never punished. Absence needs no explanation.
+              </p>
+            </R>
+          </div>
+        </section>
 
-      {/* FOOTER */}
-      <Footer
-        onOpenTerms={onOpenTerms}
-        onOpenPrivacy={onOpenPrivacy}
-      />
+        {/* BELIEFS */}
+        <section style={{ borderBottom: `1px solid ${border}` }}>
+          <div style={{ ...W, padding: "96px 40px" }}>
+            <R>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(28px, 4vw, 48px)", letterSpacing: "-.02em", fontWeight: 400, marginBottom: 56 }}>
+                What Pause believes
+              </h2>
+            </R>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0, border: `1px solid ${border}` }}>
+              {BELIEFS.map(([title, body], i) => (
+                <R key={i} d={i * 35}>
+                  <div style={{
+                    padding: "36px 32px",
+                    borderRight: i % 3 !== 2 ? `1px solid ${border}` : "none",
+                    borderBottom: i < 3 ? `1px solid ${border}` : "none",
+                  }}>
+                    <div style={{ fontSize: 11, color: accent, fontWeight: 500, marginBottom: 12, letterSpacing: ".08em" }}>0{i + 1}</div>
+                    <h3 style={{ fontSize: 15, fontWeight: 500, marginBottom: 8, lineHeight: 1.3 }}>{title}</h3>
+                    <p style={{ fontSize: 13, color: muted, lineHeight: 1.75 }}>{body}</p>
+                  </div>
+                </R>
+              ))}
+            </div>
+          </div>
+        </section>
 
-      {/* STYLES */}
-      <RevealStyles />
-    </PageContainer>
+        {/* QUIET MOMENT */}
+        <div style={{ borderBottom: `1px solid ${border}`, padding: "80px 40px", textAlign: "center", background: card }}>
+          <p style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontSize: "clamp(18px, 3vw, 30px)", color: muted, lineHeight: 2 }}>
+            Most of the time, nothing happens here.<br />
+            That's intentional.
+          </p>
+        </div>
+
+        {/* FEATURES */}
+        <section id="features" style={{ borderBottom: `1px solid ${border}` }}>
+          <div style={{ ...W, padding: "96px 40px" }}>
+            <R>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(28px, 4vw, 48px)", letterSpacing: "-.02em", fontWeight: 400, marginBottom: 52 }}>
+                Features
+              </h2>
+            </R>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+              {FEATURES.map((f, i) => (
+                <R key={i} d={i * 35}>
+                  <div style={{
+                    padding: "28px 24px", background: card,
+                    border: `1px solid ${border}`, borderRadius: 10,
+                    transition: "border-color .2s",
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = muted}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = border}>
+                    <h3 style={{ fontSize: 14, fontWeight: 500, marginBottom: 8 }}>{f.title}</h3>
+                    <p style={{ fontSize: 13, color: muted, lineHeight: 1.75 }}>{f.body}</p>
+                  </div>
+                </R>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* COMPARISON */}
+        <section style={{ borderBottom: `1px solid ${border}` }}>
+          <div style={{ ...W, padding: "96px 40px" }}>
+            <R>
+              <div style={{ border: `1px solid ${border}`, borderRadius: 12, overflow: "hidden", display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+                <div style={{ padding: "52px 44px", borderRight: `1px solid ${border}` }}>
+                  <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".12em", color: muted, marginBottom: 28 }}>
+                    Most social apps
+                  </p>
+                  {["Encourage constant activity", "Punish silence", "Never end conversations", "Measure worth with numbers", "Create anxiety around replies"].map((t, i) => (
+                    <div key={i} style={{ display: "flex", gap: 14, marginBottom: 18, alignItems: "flex-start" }}>
+                      <span style={{ color: muted, fontSize: 16, lineHeight: 1.4 }}>×</span>
+                      <span style={{ fontSize: 14, color: muted, lineHeight: 1.6 }}>{t}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: "52px 44px", background: card }}>
+                  <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".12em", color: accent, marginBottom: 28 }}>
+                    Pause
+                  </p>
+                  {["Rewards availability", "Protects silence", "Ends conversations by design", "No public metrics", "Doesn't demand attention"].map((t, i) => (
+                    <div key={i} style={{ display: "flex", gap: 14, marginBottom: 18, alignItems: "flex-start" }}>
+                      <span style={{ color: accent, fontSize: 14, lineHeight: 1.6 }}>✓</span>
+                      <span style={{ fontSize: 14, lineHeight: 1.6 }}>{t}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </R>
+          </div>
+        </section>
+
+        {/* FAQ */}
+        <section id="faq" style={{ borderBottom: `1px solid ${border}` }}>
+          <div style={{ ...W, padding: "96px 40px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "start" }}>
+            <R>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(28px, 4vw, 48px)", letterSpacing: "-.02em", fontWeight: 400 }}>
+                Questions
+              </h2>
+            </R>
+            <div>
+              {FAQS.map(([q, a], i) => (
+                <R key={i} d={i * 35}>
+                  <div style={{ borderTop: `1px solid ${border}` }}>
+                    <button onClick={() => setOpenFaq(openFaq === i ? null : i)} style={{
+                      width: "100%", background: "none", border: "none", color: fg,
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "20px 0", fontSize: 14, fontFamily: "inherit",
+                      cursor: "pointer", textAlign: "left", gap: 16, fontWeight: 500,
+                    }}>
+                      <span>{q}</span>
+                      <span style={{
+                        color: muted, fontSize: 18, flexShrink: 0,
+                        transform: openFaq === i ? "rotate(45deg)" : "none",
+                        transition: "transform .25s", lineHeight: 1,
+                      }}>+</span>
+                    </button>
+                    {openFaq === i && (
+                      <p style={{ fontSize: 14, color: muted, lineHeight: 1.8, paddingBottom: 20 }}>{a}</p>
+                    )}
+                  </div>
+                </R>
+              ))}
+              <div style={{ borderTop: `1px solid ${border}` }} />
+            </div>
+          </div>
+        </section>
+
+        {/* CTA BAND */}
+        <section style={{ background: fg, color: bg, padding: "100px 40px", textAlign: "center" }}>
+          <R>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(32px, 6vw, 72px)", letterSpacing: "-.03em", fontWeight: 400, marginBottom: 20 }}>
+              Ready to be quiet?
+            </h2>
+            <p style={{ fontSize: 16, opacity: .55, marginBottom: 44, lineHeight: 1.7 }}>
+              Join Pause. Show up only when you want to.
+            </p>
+            <button onClick={onSignup} style={{
+              background: bg, color: fg, border: "none",
+              padding: "14px 32px", borderRadius: 9, cursor: "pointer",
+              fontSize: 14, fontWeight: 500, transition: "opacity .2s",
+            }}
+              onMouseEnter={e => e.target.style.opacity = ".75"}
+              onMouseLeave={e => e.target.style.opacity = "1"}>
+              Start calmly →
+            </button>
+          </R>
+        </section>
+
+        {/* FOOTER */}
+        <footer style={{ borderTop: `1px solid ${border}` }}>
+          <div style={{ ...W, padding: "22px 40px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 17 }}>pause</span>
+            <div style={{ display: "flex", gap: 24 }}>
+              <button onClick={onOpenTerms} style={{ background: "none", border: "none", color: muted, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Terms</button>
+              <button onClick={onOpenPrivacy} style={{ background: "none", border: "none", color: muted, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Privacy</button>
+            </div>
+            <span style={{ fontSize: 12, color: muted }}>© {new Date().getFullYear()} Pause</span>
+          </div>
+        </footer>
+
+      </div>
+    </>
   );
 }
